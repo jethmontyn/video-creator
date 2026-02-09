@@ -4,6 +4,7 @@ import ffmpegPath from 'ffmpeg-static'; // Добавляем эту строк�
 import fs from 'fs';
 import axios from 'axios';
 import path from 'path';
+import { exec } from 'child_process';
 
 // Указываем путь к ffmpeg явно
 ffmpeg.setFfmpegPath(ffmpegPath); 
