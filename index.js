@@ -1,21 +1,17 @@
 import express from 'express';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegPath from 'ffmpeg-static'; // Добавляем эту строку
 import fs from 'fs';
+import { exec } from 'child_process'; // ВОТ ЭТА СТРОЧКА СПАСЕТ МИР
 import axios from 'axios';
 import path from 'path';
-import { exec } from 'child_process';
-
-// Указываем путь к ffmpeg явно
-ffmpeg.setFfmpegPath(ffmpegPath); 
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-// Проверка: есть ли ffmpeg в системе?
+// Проверка FFmpeg
 exec('ffmpeg -version', (err, stdout) => {
-    if (err) console.error('❌ FFmpeg NOT FOUND in system!');
-    else console.log('✅ FFmpeg is ready!');
+    if (err) console.error('❌ FFmpeg не найден!');
+    else console.log('✅ FFmpeg готов!');
 });
 
 app.get('/', (req, res) => res.send('Railway Video Server OK ✅'));
