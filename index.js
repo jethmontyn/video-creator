@@ -10,14 +10,17 @@ app.use(express.json({ limit: '50mb' }));
 
 // Проверка FFmpeg при старте
 exec('ffmpeg -version', (err, stdout) => {
-    if (err) console.error('❌ FFmpeg не найден!');
-    else console.log('✅ FFmpeg готов к работе!');
+    if (err) {
+        console.error('❌ FFmpeg НЕ НАЙДЕН в системе!');
+    } else {
+        console.log('✅ FFmpeg полностью готов к работе!');
+    }
 });
 
 app.get('/', (req, res) => res.send('Railway Video Server OK ✅'));
 
 app.post('/create-video', async (req, res) => {
-    console.log('--- START ---');
+    console.log('--- ПОЛУЧЕН ЗАПРОС ОТ N8N ---');
     const { images } = req.body;
     const workDir = '/tmp'; 
     const timestamp = Date.now();
@@ -25,7 +28,7 @@ app.post('/create-video', async (req, res) => {
     const downloadedFiles = [];
 
     try {
-        // Очистка старых файлов
+        // Очистка старого мусора в /tmp перед началом
         const files = fs.readdirSync(workDir);
         files.forEach(file => {
             if (file.startsWith('img_')) {
@@ -33,22 +36,22 @@ app.post('/create-video', async (req, res) => {
             }
         });
 
-        // 1. Скачивание картинок
+        // 1. СКАЧИВАНИЕ КАРТИНОК
         for (let i = 0; i < images.length; i++) {
-            console.log(`📥 Скачиваю: ${images[i]}`);
+            console.log(`📥 Качаю файл ${i}: ${images[i]}`);
             const response = await axios({ 
                 url: images[i], 
                 responseType: 'arraybuffer',
-                timeout: 15000 
+                timeout: 30000 
             });
             const imgPath = path.join(workDir, `img_${i}.jpg`);
             fs.writeFileSync(imgPath, response.data);
             downloadedFiles.push(imgPath);
         }
-        console.log(`✅ Скачано картинок: ${downloadedFiles.length}`);
+        console.log(`✅ Все картинки (${downloadedFiles.length} шт.) скачаны`);
 
-        // 2. Рендер видео
-        console.log('🎬 Запуск FFmpeg...');
+        // 2. СБОРКА ВИДЕО
+        console.log('🎬 Начинаю рендеринг...');
         ffmpeg()
             .input(path.join(workDir, 'img_%d.jpg'))
             .inputOptions(['-framerate 1/5', '-start_number 0'])
@@ -59,15 +62,17 @@ app.post('/create-video', async (req, res) => {
                 '-vf scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
                 '-movflags +faststart'
             ])
-            .on('start', (cmd) => console.log('🚀 Команда FFmpeg:', cmd))
+            .on('start', (cmd) => console.log('🚀 Команда FFmpeg запущена:', cmd))
             .on('error', (err) => {
-                console.error('❌ Ошибка FFmpeg:', err.message);
-                if (!res.headersSent) res.status(500).send(err.message);
+                console.error('❌ ОШИБКА FFmpeg:', err.message);
+                if (!res.headersSent) res.status(500).send(`FFmpeg Error: ${err.message}`);
             })
             .on('end', () => {
-                console.log('🎉 Видео готово! Отправляю...');
-                res.download(finalVideo, () => {
-                    // Чистка за собой
+                console.log('🎉 ВИДЕО СОБРАНО! Отправляю файл...');
+                res.download(finalVideo, (err) => {
+                    if (err) console.error('❌ Ошибка при отправке:', err);
+                    
+                    // Полная чистка временных файлов
                     downloadedFiles.forEach(f => {
                         if (fs.existsSync(f)) fs.unlinkSync(f);
                     });
@@ -78,12 +83,12 @@ app.post('/create-video', async (req, res) => {
             .save(finalVideo);
 
     } catch (e) {
-        console.error('💥 Ошибка сервера:', e.message);
-        if (!res.headersSent) res.status(500).send(e.message);
+        console.error('💥 КРИТИЧЕСКАЯ ОШИБКА:', e.message);
+        if (!res.headersSent) res.status(500).send(`Server Error: ${e.message}`);
     }
 });
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
