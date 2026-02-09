@@ -1,26 +1,16 @@
 import express from 'express';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
-import { exec } from 'child_process';
 import axios from 'axios';
 import path from 'path';
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-// Проверка FFmpeg при старте
-exec('ffmpeg -version', (err, stdout) => {
-    if (err) {
-        console.error('❌ FFmpeg НЕ НАЙДЕН в системе!');
-    } else {
-        console.log('✅ FFmpeg полностью готов к работе!');
-    }
-});
-
-app.get('/', (req, res) => res.send('Railway Video Server OK ✅'));
+app.get('/', (req, res) => res.send('Video Server is Online ✅'));
 
 app.post('/create-video', async (req, res) => {
-    console.log('--- ПОЛУЧЕН ЗАПРОС ОТ N8N ---');
+    console.log('--- НОВЫЙ ЗАПРОС ---');
     const { images } = req.body;
     const workDir = '/tmp'; 
     const timestamp = Date.now();
@@ -28,7 +18,7 @@ app.post('/create-video', async (req, res) => {
     const downloadedFiles = [];
 
     try {
-        // Очистка старого мусора в /tmp перед началом
+        // Чистим папку /tmp
         const files = fs.readdirSync(workDir);
         files.forEach(file => {
             if (file.startsWith('img_')) {
@@ -36,22 +26,22 @@ app.post('/create-video', async (req, res) => {
             }
         });
 
-        // 1. СКАЧИВАНИЕ КАРТИНОК
+        // 1. Скачиваем картинки
         for (let i = 0; i < images.length; i++) {
-            console.log(`📥 Качаю файл ${i}: ${images[i]}`);
+            console.log(`📥 Скачиваю: ${images[i]}`);
             const response = await axios({ 
                 url: images[i], 
                 responseType: 'arraybuffer',
-                timeout: 30000 
+                timeout: 20000 
             });
             const imgPath = path.join(workDir, `img_${i}.jpg`);
             fs.writeFileSync(imgPath, response.data);
             downloadedFiles.push(imgPath);
         }
-        console.log(`✅ Все картинки (${downloadedFiles.length} шт.) скачаны`);
+        console.log(`✅ Картинки скачаны: ${downloadedFiles.length}`);
 
-        // 2. СБОРКА ВИДЕО
-        console.log('🎬 Начинаю рендеринг...');
+        // 2. Собираем видео
+        console.log('🎬 Запуск рендеринга...');
         ffmpeg()
             .input(path.join(workDir, 'img_%d.jpg'))
             .inputOptions(['-framerate 1/5', '-start_number 0'])
@@ -62,29 +52,24 @@ app.post('/create-video', async (req, res) => {
                 '-vf scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
                 '-movflags +faststart'
             ])
-            .on('start', (cmd) => console.log('🚀 Команда FFmpeg запущена:', cmd))
+            .on('start', (cmd) => console.log('🚀 FFmpeg command:', cmd))
             .on('error', (err) => {
-                console.error('❌ ОШИБКА FFmpeg:', err.message);
-                if (!res.headersSent) res.status(500).send(`FFmpeg Error: ${err.message}`);
+                console.error('❌ FFmpeg Error:', err.message);
+                if (!res.headersSent) res.status(500).send(err.message);
             })
             .on('end', () => {
-                console.log('🎉 ВИДЕО СОБРАНО! Отправляю файл...');
-                res.download(finalVideo, (err) => {
-                    if (err) console.error('❌ Ошибка при отправке:', err);
-                    
-                    // Полная чистка временных файлов
-                    downloadedFiles.forEach(f => {
-                        if (fs.existsSync(f)) fs.unlinkSync(f);
-                    });
+                console.log('🎉 Готово! Отправляю файл...');
+                res.download(finalVideo, () => {
+                    // Чистка
+                    downloadedFiles.forEach(f => fs.existsSync(f) && fs.unlinkSync(f));
                     if (fs.existsSync(finalVideo)) fs.unlinkSync(finalVideo);
-                    console.log('🚮 Временные файлы удалены');
                 });
             })
             .save(finalVideo);
 
     } catch (e) {
-        console.error('💥 КРИТИЧЕСКАЯ ОШИБКА:', e.message);
-        if (!res.headersSent) res.status(500).send(`Server Error: ${e.message}`);
+        console.error('💥 Server Error:', e.message);
+        if (!res.headersSent) res.status(500).send(e.message);
     }
 });
 
