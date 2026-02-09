@@ -1,8 +1,12 @@
 import express from 'express';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from 'ffmpeg-static'; // Добавляем эту строку
 import fs from 'fs';
-import { exec } from 'child_process';
+import axios from 'axios';
 import path from 'path';
+
+// Указываем путь к ffmpeg явно
+ffmpeg.setFfmpegPath(ffmpegPath); 
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
